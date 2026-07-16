@@ -17,7 +17,11 @@
 #ifndef MCP25xxFD_TYPES_H
 #define MCP25xxFD_TYPES_H
 
-#if defined(HOST_CANPICO)
+#if !defined(HOST_CANPICO) && !defined(HOST_CHV_BADGE_V2) && !defined(HOST_GENERIC)
+#define HOST_CANPICO 1
+#endif
+
+#if defined(HOST_CANPICO) || defined(HOST_CHV_BADGE_V2)
 #include "rp2/mcp25xxfd-rp2.h"
 #elif defined(HOST_GENERIC)
 #define TIME_CRITICAL /* */

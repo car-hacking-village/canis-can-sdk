@@ -18,6 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#ifndef MCP25xxFD
+#define MCP25xxFD 1
+#endif
+#ifndef HOST_RP2040
+#define HOST_RP2040 1
+#endif
+
 // Drivers for the MCP251FD and MCP2518FD CAN controllers from Microchip (including
 // the MCP251863 combined CAN controller and CAN transceiver package)
 //
@@ -91,21 +98,25 @@
 // these objects.
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h> 
 
 // Brings in API, chip-specific and board-specific definitions
 #include "../canapi.h"
 
+// CHV FIX: Redirect printf to MicroPython REPL only when building the module
+#ifdef MICROPY_PY__CANIS
+#include "py/runtime.h"
+#include "py/mphal.h"
+#undef printf
+#define printf(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#endif
+
 #ifdef MP_DEBUGGING
-// TODO get rid of this after debugging finished; only applies to MicroPython platform
-typedef void (*mp_print_strn_t)(void *data, const char *str, uint16_t len);
-typedef struct _mp_print_t {
-    void *data;
-    mp_print_strn_t print_strn;
-} mp_print_t;
-int mp_printf(const mp_print_t *print, const char *fmt, ...);
-extern const mp_print_t mp_plat_print;
-#define MP_PYTHON_PRINTER &mp_plat_print
-void debug_printf( const char *format, ... );
+#ifndef printf
+#define debug_printf(...) printf(__VA_ARGS__)
+#else
+#define debug_printf(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#endif
 #endif
 
 // Number of times a CRC-failed SPI transaction will be re-tried
@@ -723,6 +734,9 @@ static bool TIME_CRITICAL set_controller_mode(can_interface_t *spi_interface,
             case CAN_MODE_OFFLINE:
                 reqop = 4U;
                 break;
+            case CAN_MODE_LOOPBACK:
+                reqop = 2U;
+                break;
         }
 
         // Try multiple times to put the controller into the desired mode, then give up with
@@ -757,8 +771,6 @@ static bool TIME_CRITICAL send_frame(can_controller_t *controller, const can_fra
     if (!fifo || controller->tx_pri_queue.fifo_hash_valid) {
         // Put the frame in the priority transmit queue
         if (controller->tx_pri_queue.num_free_slots == 0) {
-            // No room in the transmit queue
-            // debug_printf("no room 1\n"); // TODO remove
             return false;
         }
         else {
@@ -1394,6 +1406,42 @@ static uint32_t TIME_CRITICAL pop_tx_event_as_bytes(can_controller_t *controller
 //  [000 0000 TXQ transmit event]
 
 // Errata: C1INT read can be corrupted
+uint32_t can_get_config_txqcon(can_controller_t *controller)
+{
+    mcp25xxfd_spi_gpio_disable_irq(&controller->host_interface);
+    uint32_t val = read_word_crc(&controller->host_interface, C1TXQCON);
+    mcp25xxfd_spi_gpio_enable_irq(&controller->host_interface);
+    return val;
+}
+
+uint32_t can_get_config_fifocon1(can_controller_t *controller)
+{
+    mcp25xxfd_spi_gpio_disable_irq(&controller->host_interface);
+    uint32_t val = read_word_crc(&controller->host_interface, C1FIFOCON1);
+    mcp25xxfd_spi_gpio_enable_irq(&controller->host_interface);
+    return val;
+}
+
+uint32_t can_get_config_txqsta(can_controller_t *controller) { 
+    mcp25xxfd_spi_gpio_disable_irq(&controller->host_interface);
+    uint32_t val = read_word_crc(&controller->host_interface, C1TXQSTA); 
+    mcp25xxfd_spi_gpio_enable_irq(&controller->host_interface);
+    return val;
+}
+uint32_t can_get_config_txqua(can_controller_t *controller) { 
+    mcp25xxfd_spi_gpio_disable_irq(&controller->host_interface);
+    uint32_t val = read_word_crc(&controller->host_interface, C1TXQUA); 
+    mcp25xxfd_spi_gpio_enable_irq(&controller->host_interface);
+    return val;
+}
+uint32_t can_get_config_fifosta1(can_controller_t *controller) { 
+    mcp25xxfd_spi_gpio_disable_irq(&controller->host_interface);
+    uint32_t val = read_word_crc(&controller->host_interface, C1FIFOSTA1); 
+    mcp25xxfd_spi_gpio_enable_irq(&controller->host_interface);
+    return val;
+}
+uint32_t can_get_tx_free_slots(can_controller_t *controller) { return controller->tx_pri_queue.num_free_slots; }
+
 void TIME_CRITICAL mcp25xxfd_irq_handler(can_controller_t *controller)
 {
     // Gets an interrupt from the following sources:
@@ -1485,6 +1533,42 @@ can_status_t TIME_CRITICAL can_get_status(can_controller_t *controller)
         status.status = trec;
     }
     return status;
+}
+
+uint32_t TIME_CRITICAL can_get_config_con(can_controller_t *controller)
+{
+    can_interface_t *spi_interface = &controller->host_interface;
+    uint32_t val = 0;
+    if (controller != NULL) {
+        mcp25xxfd_spi_gpio_disable_irq(spi_interface);
+        val = read_word_crc(spi_interface, C1CON);
+        mcp25xxfd_spi_gpio_enable_irq(spi_interface);
+    }
+    return val;
+}
+
+uint32_t TIME_CRITICAL can_get_config_nbt(can_controller_t *controller)
+{
+    can_interface_t *spi_interface = &controller->host_interface;
+    uint32_t val = 0;
+    if (controller != NULL) {
+        mcp25xxfd_spi_gpio_disable_irq(spi_interface);
+        val = read_word_crc(spi_interface, C1NBTCFG);
+        mcp25xxfd_spi_gpio_enable_irq(spi_interface);
+    }
+    return val;
+}
+
+uint32_t TIME_CRITICAL can_get_config_dbt(can_controller_t *controller)
+{
+    can_interface_t *spi_interface = &controller->host_interface;
+    uint32_t val = 0;
+    if (controller != NULL) {
+        mcp25xxfd_spi_gpio_disable_irq(spi_interface);
+        val = read_word_crc(spi_interface, C1DBTCFG);
+        mcp25xxfd_spi_gpio_enable_irq(spi_interface);
+    }
+    return val;
 }
 
 void can_status_request_recover(can_controller_t *controller)

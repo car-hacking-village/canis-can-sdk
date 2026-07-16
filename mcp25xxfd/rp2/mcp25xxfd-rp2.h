@@ -24,6 +24,7 @@
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
+#include <string.h>
 
 // Target-specific type defining the interface to the CAN controller
 // This is SPI for the MCP25xxFD (and MCP251863) and on the RP2040 there are
@@ -39,6 +40,22 @@ typedef struct {
     uint8_t spi_irq;                        // IRQ pin
     uint8_t spi_cs;                         // SPI device chip select
 } can_interface_t;
+
+#ifdef HOST_RP2040
+#include "hardware/sync.h"
+// Global SPI Lock using RP2040 Hardware Spinlock 31
+// Using an array to make it safe for multi-core access
+static uint32_t mcp_spi_lock_save[2];
+static inline void _mcp_spi_lock() {
+    uint32_t s = save_and_disable_interrupts();
+    spin_lock_blocking(spin_lock_instance(31));
+    mcp_spi_lock_save[get_core_num()] = s;
+}
+static inline void _mcp_spi_unlock() {
+    uint32_t s = mcp_spi_lock_save[get_core_num()];
+    spin_unlock(spin_lock_instance(31), s);
+}
+#endif
 
 // Binds the drivers to the CANPico hardware
 #if defined(HOST_CANPICO)
@@ -58,6 +75,28 @@ typedef struct {
 // For multiple devices on the same SPI channel, spi_cs and spi_irq will be different
 // but the other fields the same.
 static inline void mcp25xxfd_spi_bind_canpico(can_interface_t *interface)
+{
+    interface->spi_device = SPI_DEVICE;
+    interface->spi_rx = SPI_Rx;
+    interface->spi_tx = SPI_Tx;
+    interface->spi_sck = SPI_SCK;
+    interface->spi_irq = SPI_IRQ;
+    interface->spi_cs = SPI_CS;
+    interface->magic = 0x1e5515f0U;
+}
+
+#elif defined(HOST_CHV_BADGE_V2)
+
+// CHV DC34 V2 Badge Hardware (Standard SPI Mapping)
+#define XSTBY_GPIO                          (9U)            // Transceiver standby pin
+#define SPI_DEVICE                          (spi0)
+#define SPI_Rx                              (4U)            // MISO (SDO)
+#define SPI_Tx                              (3U)            // MOSI (SDI)
+#define SPI_SCK                             (2U)
+#define SPI_IRQ                             (6U)            // Interrupt request
+#define SPI_CS                              (5U)            // Chip select
+
+static inline void mcp25xxfd_spi_bind_chv_v2(can_interface_t *interface)
 {
     interface->spi_device = SPI_DEVICE;
     interface->spi_rx = SPI_Rx;
@@ -135,19 +174,20 @@ static inline void mcp25xxfd_spi_gpio_disable_irq(can_interface_t *interface)
 
 static inline void mcp25xxfd_spi_select(can_interface_t *interface)
 {
+    _mcp_spi_lock();
     sio_hw->gpio_clr = (1U << interface->spi_cs);
 }
 
 static inline void mcp25xxfd_spi_deselect(can_interface_t *interface)
 {
     sio_hw->gpio_set = (1U << interface->spi_cs);
+    _mcp_spi_unlock();
 }
 
 static inline void mcp25xxfd_spi_write(can_interface_t *interface, const uint8_t *src, uint16_t len)
 {
     spi_write_blocking(interface->spi_device, src, len);
 }
-
 static inline void mcp25xxfd_spi_read_write(can_interface_t *interface, const uint8_t *cmd, uint8_t *resp, uint16_t len)
 {
     spi_write_read_blocking(interface->spi_device, cmd, resp, len);
@@ -157,6 +197,7 @@ static inline void mcp25xxfd_spi_read(can_interface_t *interface, uint8_t *dst, 
 {
     spi_read_blocking(interface->spi_device, 0xaa, dst, len);
 }
+
 
 static inline void mcp25xxfd_spi_pins_init(can_interface_t *interface) {
     // These are the defaults anyway:
@@ -170,7 +211,7 @@ static inline void mcp25xxfd_spi_pins_init(can_interface_t *interface) {
     gpio_set_function(interface->spi_sck, GPIO_FUNC_SPI);
     gpio_set_function(interface->spi_tx, GPIO_FUNC_SPI);
 
-#ifdef HOST_CANPICO
+#if defined(HOST_CANPICO) || defined(HOST_CHV_BADGE_V2)
     // This isn't strictly part of the SPI driver but the pin needs to be set to
     // enable the CAN transceiver on the CANPico board. Other boards may require
     // different settings.

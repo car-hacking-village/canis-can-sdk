@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #ifndef INLINE
-#define INLINE inline
+#define INLINE static inline
 #endif
 
 // The MCP25xxFD drivers support the MCP2517FD, MCP2518FD and MCP251863 CAN
@@ -240,7 +240,8 @@ typedef enum {
     CAN_MODE_NORMAL_FD,                     // Can mix CAN 2.0 and CAN FD frames
     CAN_MODE_LISTEN_ONLY,                   // Listen only (don't acknowledge CAN frames)
     CAN_MODE_ACK_ONLY,                      // Listen but do acknowledge CAN frames
-    CAN_MODE_OFFLINE                        // Do not listen or transmit
+    CAN_MODE_OFFLINE,                       // Do not listen or transmit
+    CAN_MODE_LOOPBACK                       // Internal loopback mode for testing
 } can_mode_t;
 
 //////////////////////////////////////////// CAN status ////////////////////////////////////////////
@@ -414,6 +415,26 @@ INLINE uint16_t can_controller_get_options(const can_controller_t *controller)
 /// @brief Ask the CAN controller for its status
 /// @exception This call is non-reentrant
 can_status_t can_get_status(can_controller_t *controller);
+
+/// @brief Returns the C1CON register
+uint32_t can_get_config_con(can_controller_t *controller);
+
+/// @brief Returns the C1NBTCFG register
+uint32_t can_get_config_nbt(can_controller_t *controller);
+
+/// @brief Returns the C1DBTCFG register
+uint32_t can_get_config_dbt(can_controller_t *controller);
+
+/// @brief Returns the C1TXQCON register
+uint32_t can_get_config_txqcon(can_controller_t *controller);
+
+/// @brief Returns the C1FIFOCON1 register
+uint32_t can_get_config_fifocon1(can_controller_t *controller);
+
+uint32_t can_get_config_txqsta(can_controller_t *controller);
+uint32_t can_get_config_txqua(can_controller_t *controller);
+uint32_t can_get_config_fifosta1(can_controller_t *controller);
+uint32_t can_get_tx_free_slots(can_controller_t *controller);
 
 /// @brief Ask the CAN controller to recover from Bus Off
 /// @exception This call is non-reentrant
