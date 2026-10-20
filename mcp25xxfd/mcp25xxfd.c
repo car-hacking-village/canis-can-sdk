@@ -691,7 +691,7 @@ static bool TIME_CRITICAL set_controller_mode(can_interface_t *spi_interface,
         // Divided up by default as follows:
         // - TEF = 12 deep, 12 x 12 = 144 bytes (includes timestamp)
         // - TXQ = 20 deep, 20 x (8 + 64) = 1440 bytes (64 byte payloads)
-        // - 1 x receive FIFO = 6 deep, 4 x (12 + 64) = 456 bytes (64 byte payloads)
+        // - 1 x receive FIFO = 6 deep, 6 x (12 + 64) = 456 bytes (64 byte payloads)
         // Total = 2040 (must be < 2048)
 
         // Transmit event FIFO control register
@@ -709,7 +709,7 @@ static bool TIME_CRITICAL set_controller_mode(can_interface_t *spi_interface,
         // FSIZE Defaults to 6-deep for CAN FD, 32-deep for CAN
         // RXTSEN Timestamp receptions
         // TFNRFNIE interrupts enabled
-        write_word(spi_interface, C1FIFOCON1, PLSIZE(7U) | FSIZE(CAN_HW_RX_FIFO_SIZE) | RXTSEN | TFNRFNIE);
+        write_word(spi_interface, C1FIFOCON1, PLSIZE(7U) | FSIZE(CAN_HW_RX_FIFO_SIZE - 1U) | RXTSEN | TFNRFNIE);
 
         // Enable the interrupts, don't dismiss any pending ones
         enable_controller_interrupts(spi_interface, 0);
