@@ -392,7 +392,7 @@ static void TIME_CRITICAL read_words_no_deselect(can_interface_t *spi_interface,
 static void TIME_CRITICAL read_words(can_interface_t *spi_interface, uint16_t addr, uint32_t *words, uint32_t n)
 {
     // Must be called with interrupts locked
-    mcp25xxfd_spi_select(spi_interface);
+    // read_words_no_deselect() selects (takes the SPI spinlock); selecting here too deadlocks
     read_words_no_deselect(spi_interface, addr, words, n);
     mcp25xxfd_spi_deselect(spi_interface);
 }
