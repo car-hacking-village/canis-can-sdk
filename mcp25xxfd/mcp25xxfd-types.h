@@ -77,6 +77,7 @@ typedef struct {
     uint32_t bus_off;                               // Count of number of times device has been bus off
     uint32_t spurious;                              // Count of spurious interrupts
     uint32_t crc_bad;                               // Count of read CRC failure    
+    uint16_t rx_ua;                                 // Shadow of C1FIFOUA1 + 0x400 (0 = not yet read)
 } can_controller_target_t;
 
 typedef struct {

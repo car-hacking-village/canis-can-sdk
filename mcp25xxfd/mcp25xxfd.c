@@ -150,6 +150,8 @@
 
 #define FIFO1_ENTRY_BYTES                   (12U + 64U)
 #define FIFO1_SIZE                          (CAN_HW_RX_FIFO_SIZE * FIFO1_ENTRY_BYTES)
+// FIFO 1 follows the TEF and the TXQ in RAM, which begins at 0x400
+#define FIFO1_BASE                          (0x400U + TXQ_BASE + TQX_SIZE)
 
 // Write a 32-bit word in big endian format to a buffer
 #define WRITE_BIG_ENDIAN(buf, word)         ((buf)[0] = (uint8_t)(((word) >> 24) & 0xffU),  \
@@ -1046,6 +1048,8 @@ static void TIME_CRITICAL bus_off_handler(can_controller_t *controller)
 
         // Discard all the pending frames
         init_tx_buffers(controller);
+        // Re-read the RX FIFO's user address before the next frame, in case recovery reset the FIFO
+        controller->target_specific.rx_ua = 0;
     }
     // This could be warning about error passive and other states, but we don't care about those
 }
@@ -1116,7 +1120,12 @@ static void TIME_CRITICAL rx_handler(can_controller_t *controller)
 {
     can_interface_t *spi_interface = &controller->host_interface;
 
-    uint16_t addr = (uint16_t)read_word_crc(spi_interface, C1FIFOUA1) + 0x400U;
+    // The FIFO's user address is shadowed: read C1FIFOUA1 only after setup or a bus-off
+    can_controller_target_t *ts = &controller->target_specific;
+    if (ts->rx_ua == 0) {
+        ts->rx_ua = (uint16_t)read_word_crc(spi_interface, C1FIFOUA1) + 0x400U;
+    }
+    uint16_t addr = ts->rx_ua;
 
     // Pick up the frame (or partial frame if an FD frame)
     uint32_t r[3]; // 3 metadata words, no payload words
@@ -1186,6 +1195,11 @@ static void TIME_CRITICAL rx_handler(can_controller_t *controller)
     // Mark the frame as taken, ensure that timestamping and the not-empty interrupt are still enabled
     // Set UINC, RXTSEN, TFNRFNIE. This will dismiss the interrupt level (if there are no other interrupts)
     write_word(spi_interface, C1FIFOCON1, UINC | RXTSEN | TFNRFNIE);
+    // UINC moved the FIFO's user address on by one message object
+    ts->rx_ua = addr + FIFO1_ENTRY_BYTES;
+    if (ts->rx_ua >= FIFO1_BASE + FIFO1_SIZE) {
+        ts->rx_ua = FIFO1_BASE;
+    }
 
     bool ignore_overflow = controller->options & CAN_OPTION_REJECT_OVERFLOW;
     bool ignore_remote = controller->options & CAN_OPTION_REJECT_REMOTE;
@@ -1502,8 +1516,10 @@ void TIME_CRITICAL mcp25xxfd_irq_handler(can_controller_t *controller)
             // Dismissal of this event is implicit by emptying the receive FIFO
             rx_handler(controller);
         }
-        // Dismiss all the explicit handled events
-        enable_controller_interrupts(spi_interface, dismiss);
+        // Dismiss all the explicit handled events (with none, the write would change nothing)
+        if (dismiss) {
+            enable_controller_interrupts(spi_interface, dismiss);
+        }
     }
 }
 
@@ -1820,6 +1836,7 @@ can_errorcode_t TIME_CRITICAL can_setup_controller(can_controller_t *controller,
     controller->target_specific.bus_off = 0;
     controller->target_specific.spurious = 0;
     controller->target_specific.crc_bad = 0;
+    controller->target_specific.rx_ua = 0;
 
     if (!set_controller_mode(spi_interface, mode,
                              nbrp, ntseg1, ntseg2, nsjw,
