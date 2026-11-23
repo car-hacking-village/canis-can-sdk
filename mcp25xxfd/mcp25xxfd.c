@@ -1085,7 +1085,7 @@ static void TIME_CRITICAL error_handler(can_controller_t *controller)
             } else {
                 // Add an 'overflow' frame to the back of the queue
                 controller->rx_fifo.free = 0;
-                uint8_t idx = controller->rx_fifo.tail_idx++;
+                uint16_t idx = controller->rx_fifo.tail_idx++;
                 controller->rx_fifo.dropped_event_idx = idx;
                 if (controller->rx_fifo.tail_idx == CAN_RX_FIFO_SIZE) {
                     controller->rx_fifo.tail_idx = 0;
@@ -1100,7 +1100,7 @@ static void TIME_CRITICAL error_handler(can_controller_t *controller)
         } else {
             // Put the error into the FIFO
             controller->rx_fifo.free--;
-            uint8_t idx = controller->rx_fifo.tail_idx++;
+            uint16_t idx = controller->rx_fifo.tail_idx++;
             if (controller->rx_fifo.tail_idx == CAN_RX_FIFO_SIZE) {
                 controller->rx_fifo.tail_idx = 0;
             }
@@ -1238,7 +1238,7 @@ static void TIME_CRITICAL rx_handler(can_controller_t *controller)
     if (create_overflow) {
         // Add an 'overflow' frame to the back of the queue
         controller->rx_fifo.free = 0;
-        uint8_t idx = controller->rx_fifo.tail_idx++;
+        uint16_t idx = controller->rx_fifo.tail_idx++;
         controller->rx_fifo.dropped_event_idx = idx;
         if (controller->rx_fifo.tail_idx == CAN_RX_FIFO_SIZE) {
             controller->rx_fifo.tail_idx = 0;
@@ -1260,7 +1260,7 @@ static void TIME_CRITICAL rx_handler(can_controller_t *controller)
     }
     if (store_frame) {
         controller->rx_fifo.free--;
-        uint8_t idx = controller->rx_fifo.tail_idx++;
+        uint16_t idx = controller->rx_fifo.tail_idx++;
         if (controller->rx_fifo.tail_idx == CAN_RX_FIFO_SIZE) {
             controller->rx_fifo.tail_idx = 0;
         }
@@ -1274,7 +1274,7 @@ void TIME_CRITICAL pop_rx_event(can_controller_t *controller, can_rx_event_t *de
 {
     // This must be called with interrupts disabled if peek is false
 
-    uint8_t idx = controller->rx_fifo.head_idx;
+    uint16_t idx = controller->rx_fifo.head_idx;
 
     if (!peek) {
         // Pop the front of the receive FIFO
@@ -1297,7 +1297,7 @@ static uint16_t TIME_CRITICAL pop_rx_event_as_bytes(can_controller_t *controller
     // Must be called with a non-empty FIFO
     // Must be called with enough space to store the result (19 bytes for CAN 2.0, or up to 75 bytes if an FD frame)
 
-    uint8_t idx = controller->rx_fifo.head_idx;
+    uint16_t idx = controller->rx_fifo.head_idx;
 
     // Pop the front of the receive FIFO (interrupts are locked)
     controller->rx_fifo.free++;

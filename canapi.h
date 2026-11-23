@@ -81,8 +81,8 @@
 #error "CAN_TX_FIFO_SIZE must be <= 32"
 #endif
 
-#if (CAN_RX_FIFO_SIZE > 255)
-#error "CAN_RX_FIFO_SIZE must be < 256"
+#if (CAN_RX_FIFO_SIZE > 65535)
+#error "CAN_RX_FIFO_SIZE must be < 65536"
 #endif
 
 #if (CAN_TX_EVENT_FIFO_SIZE > 255)
@@ -330,10 +330,10 @@ typedef struct {
     // Receive FIFO, containing details of CAN frames, errors and overflow events
     struct {
         can_rx_event_t rx_events[CAN_RX_FIFO_SIZE];
-        uint8_t head_idx;                               // Index into first used frame in the FIFO
-        uint8_t tail_idx;                               // Index into first free frame at the back of the FIFO
-        uint8_t free;                                   // Number of free slots in the queue
-        uint8_t dropped_event_idx;                      // Used when the FIFO has overrun
+        uint16_t head_idx;                              // Index into first used frame in the FIFO
+        uint16_t tail_idx;                              // Index into first free frame at the back of the FIFO
+        uint16_t free;                                  // Number of free slots in the queue
+        uint16_t dropped_event_idx;                     // Used when the FIFO has overrun
     } rx_fifo;
     
     // Frame transmit FIFO (feeds into priority queue)

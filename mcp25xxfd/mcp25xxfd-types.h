@@ -59,7 +59,7 @@ typedef struct {
 
 // Number of frames in the software receive FIFO
 #ifndef CAN_RX_FIFO_SIZE
-#define CAN_RX_FIFO_SIZE                (128U)          // Must be less than 256
+#define CAN_RX_FIFO_SIZE                (128U)          // Must be less than 65536
 #endif
 
 // Number of elements in the software TX event FIFO
